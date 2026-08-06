@@ -2486,19 +2486,20 @@ int SDL_AndroidGetExternalStorageState(void)
     return stateFlags;
 }
 
-const char *SDL_AndroidGetExternalStoragePath(void)
-{
+const char *SDL_AndroidGetExternalStoragePath(void) {
     static char *s_AndroidExternalFilesPath = NULL;
 
     if (s_AndroidExternalFilesPath == NULL) {
         struct LocalReferenceHolder refs = LocalReferenceHolder_Setup(__FUNCTION__);
         jmethodID mid;
         jobject context;
+        jobjectArray filesArray;
         jobject fileObject;
         jstring pathString;
         const char *path;
 
         JNIEnv *env = Android_JNI_GetEnv();
+
         if (!LocalReferenceHolder_Init(&refs, env)) {
             LocalReferenceHolder_Cleanup(&refs);
             return NULL;
@@ -2507,19 +2508,27 @@ const char *SDL_AndroidGetExternalStoragePath(void)
         /* context = SDLActivity.getContext(); */
         context = (*env)->CallStaticObjectMethod(env, mActivityClass, midGetContext);
 
-        /* fileObj = context.getExternalFilesDir(); */
-        mid = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, context),
-                                  "getExternalFilesDir", "(Ljava/lang/String;)Ljava/io/File;");
-        fileObject = (*env)->CallObjectMethod(env, context, mid, NULL);
+        /* filesArray = context.getExternalMediaDirs(); */
+        mid = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, context), "getExternalMediaDirs", "()[Ljava/io/File;");
+        filesArray = (jobjectArray)(*env)->CallObjectMethod(env, context, mid);
+
+        if (!filesArray || (*env)->GetArrayLength(env, filesArray) == 0) {
+            SDL_SetError("Couldn't get external media directory");
+            LocalReferenceHolder_Cleanup(&refs);
+            return NULL;
+        }
+
+        /* fileObject = filesArray[0]; */
+        fileObject = (*env)->GetObjectArrayElement(env, filesArray, 0);
+
         if (!fileObject) {
-            SDL_SetError("Couldn't get external directory");
+            SDL_SetError("Couldn't get primary external media directory");
             LocalReferenceHolder_Cleanup(&refs);
             return NULL;
         }
 
         /* path = fileObject.getAbsolutePath(); */
-        mid = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, fileObject),
-                                  "getAbsolutePath", "()Ljava/lang/String;");
+        mid = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, fileObject), "getAbsolutePath", "()Ljava/lang/String;");
         pathString = (jstring)(*env)->CallObjectMethod(env, fileObject, mid);
 
         path = (*env)->GetStringUTFChars(env, pathString, NULL);
@@ -2528,6 +2537,7 @@ const char *SDL_AndroidGetExternalStoragePath(void)
 
         LocalReferenceHolder_Cleanup(&refs);
     }
+
     return s_AndroidExternalFilesPath;
 }
 
