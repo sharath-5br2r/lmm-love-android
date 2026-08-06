@@ -991,12 +991,15 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
     /**
      * This can be overridden
      */
+    /**
+     * Set screen orientation: Defaults to Landscape, but supports Portrait if requested or hinted.
+     */
     public void setOrientationBis(int w, int h, boolean resizable, String hint)
     {
         int orientation_landscape = -1;
         int orientation_portrait = -1;
 
-        /* If set, hint "explicitly controls which UI orientations are allowed". */
+        /* Check hints for explicit Landscape preferences */
         if (hint.contains("LandscapeRight") && hint.contains("LandscapeLeft")) {
             orientation_landscape = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
         } else if (hint.contains("LandscapeLeft")) {
@@ -1005,7 +1008,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
             orientation_landscape = ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE;
         }
 
-        /* exact match to 'Portrait' to distinguish with PortraitUpsideDown */
+        /* Check hints for explicit Portrait preferences */
         boolean contains_Portrait = hint.contains("Portrait ") || hint.endsWith("Portrait");
 
         if (contains_Portrait && hint.contains("PortraitUpsideDown")) {
@@ -1020,31 +1023,29 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
         boolean is_portrait_allowed = (orientation_portrait != -1);
         int req; /* Requested orientation */
 
-        /* No valid hint, nothing is explicitly allowed */
         if (!is_portrait_allowed && !is_landscape_allowed) {
             if (resizable) {
-                /* All orientations are allowed, respecting user orientation lock setting */
+                /* Allow both via sensor, defaulting initial presentation to landscape */
                 req = ActivityInfo.SCREEN_ORIENTATION_FULL_USER;
             } else {
-                /* Fixed window and nothing specified. Get orientation from w/h of created window */
-                req = (w > h ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE : ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT);
+                /* Default to Sensor Landscape if no hint is provided */
+                req = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE;
             }
         } else {
-            /* At least one orientation is allowed */
+            /* At least one orientation hint was provided */
             if (resizable) {
                 if (is_portrait_allowed && is_landscape_allowed) {
-                    /* hint allows both landscape and portrait, promote to full user */
+                    /* Both allowed, let user sensor control it */
                     req = ActivityInfo.SCREEN_ORIENTATION_FULL_USER;
                 } else {
-                    /* Use the only one allowed "orientation" */
+                    /* Use whichever specific orientation was allowed */
                     req = (is_landscape_allowed ? orientation_landscape : orientation_portrait);
                 }
             } else {
-                /* Fixed window and both orientations are allowed. Choose one. */
+                /* Fixed window size: If both are allowed, default to Landscape */
                 if (is_portrait_allowed && is_landscape_allowed) {
-                    req = (w > h ? orientation_landscape : orientation_portrait);
+                    req = orientation_landscape;
                 } else {
-                    /* Use the only one allowed "orientation" */
                     req = (is_landscape_allowed ? orientation_landscape : orientation_portrait);
                 }
             }
@@ -1053,7 +1054,6 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
         Log.v(TAG, "setOrientation() requestedOrientation=" + req + " width=" + w +" height="+ h +" resizable=" + resizable + " hint=" + hint);
         mSingleton.setRequestedOrientation(req);
     }
-
     /**
      * This method is called by SDL using JNI.
      */
